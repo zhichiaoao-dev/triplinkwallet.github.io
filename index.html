@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>TripLink Wallet Demo</title>
+<style>
+:root{--brand:#0ea5e9;--ink:#0f172a;--muted:#64748b;--bg:#f8fafc;--card:#ffffff;--ok:#16a34a;--warn:#f59e0b;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto}
+.wrap{max-width:1080px;margin:0 auto;padding:16px}
+header{background:#fff;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:10}
+.brand{display:flex;align-items:center;gap:10px;padding:10px 16px}
+.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#06b6d4,#3b82f6)}
+.title{font-weight:700}
+.subtitle{font-size:12px;color:var(--muted)}
+.card{background:var(--card);border:1px solid #e5e7eb;border-radius:12px;padding:16px}
+button{padding:10px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;cursor:pointer}
+button.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+button.ghost{background:#fff;color:var(--brand);border-color:var(--brand)}
+button:disabled{opacity:.5;cursor:not-allowed}
+input[type="checkbox"]{transform:scale(1.2)}
+.hero{padding:32px;text-align:center}
+.hero h1{margin:0 0 12px;font-size:24px}
+.hero p{margin:0 auto 18px;color:var(--muted);max-width:720px}
+.badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.badge{font-size:12px;border:1px solid #cbd5e1;color:#334155;background:#f1f5f9;border-radius:999px;padding:4px 8px}
+.warning{background:#fff7ed;border-color:#fed7aa;color:#9a3412;border-radius:10px;padding:10px;font-size:13px;border:1px solid #fed7aa}
+.mnemonic{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.word{padding:10px;border:1px dashed #cbd5e1;border-radius:10px;background:#fafafa;text-align:center;font-weight:600}
+.line{height:1px;background:#e5e7eb;margin:12px 0}
+.layout{display:grid;grid-template-columns:1fr 5fr;gap:12px}
+.sidebar{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
+.side-head{padding:12px;border-bottom:1px solid #e5e7eb;font-weight:700}
+.chain{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px dashed #e5e7eb;cursor:pointer}
+.chain:last-child{border-bottom:none}
+.chain.active{background:#eef2ff}
+.chip{font-size:12px;color:#334155;background:#e2e8f0;border-radius:6px;padding:2px 6px}
+.list{display:grid;gap:8px}
+.token{display:flex;justify-content:space-between;align-items:center;border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff}
+.token .left{display:flex;gap:10px;align-items:center}
+.ticon{width:28px;height:28px;border-radius:999px;background:#e2e8f0}
+.muted{color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111827;color:#fff;padding:8px 12px;border-radius:8px;opacity:0;transition:.3s;z-index:999}
+.toast.show{opacity:1}
+@media(max-width:880px){.layout{grid-template-columns:1fr}.sidebar{order:2}}
+</style>
+</head>
+<body>
+<header>
+<div class="brand wrap">
+<div class="logo"></div>
+<div>
+<div class="title">TripLink Wallet</div>
+<div class="subtitle">Crypto 旅行交易钱包 · Demo</div>
+</div>
+</div>
+</header>
+
+<main class="wrap" id="app"></main>
+<div id="toast" class="toast"></div>
+
+<script>
+function $(sel){return document.querySelector(sel);}
+function mount(html){ $("#app").innerHTML = html; }
+function toast(msg){ var t=$("#toast"); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},1600); }
+
+var WORDS = ["abandon","ability","able","about","above","absent","absorb","abstract","absurd","abuse","access","accident","account","accuse","achieve","acid","acoustic","acquire","across","act","action","actor","actual","adapt","add","address","adjust","admit","adult","advance","advice","again","age","agent","agree","ahead","aim","air","airport","aisle","alarm","album","alert","alien","all","alley","allow","almost","alone","alpha","already","also","alter","always","amateur","amazing","among","amount","amused","analyst","anchor","ancient","anger","angle","angry"];
+var CHAINS = [
+{ id:"ethereum", name:"Ethereum", code:"ETH", tokens:[
+{symbol:"ETH", name:"Ether"},{symbol:"USDC", name:"USD Coin"},{symbol:"USDT", name:"Tether"},{symbol:"DAI", name:"Dai"}
+]},
+{ id:"tron", name:"Tron", code:"TRX", tokens:[
+{symbol:"TRX", name:"TRON"},{symbol:"USDT", name:"Tether (TRC20)"},{symbol:"USDC", name:"USD Coin (TRC20)"}
+]},
+{ id:"bitcoin", name:"Bitcoin", code:"BTC", tokens:[{symbol:"BTC", name:"Bitcoin"}]},
+{ id:"bsc", name:"BNB Smart Chain", code:"BNB", tokens:[
+{symbol:"BNB", name:"BNB"},{symbol:"USDT", name:"Tether (BEP20)"},{symbol:"USDC", name:"USD Coin (BEP20)"}
+]},
+{ id:"polygon", name:"Polygon", code:"MATIC", tokens:[
+{symbol:"MATIC", name:"Polygon"},{symbol:"USDC", name:"USD Coin"},{symbol:"USDT", name:"Tether"}
+]},
+{ id:"arbitrum", name:"Arbitrum One", code:"ARB", tokens:[
+{symbol:"ETH", name:"Ether (Arbitrum)"},{symbol:"ARB", name:"Arbitrum"},{symbol:"USDC", name:"USD Coin"}
+]},
+{ id:"solana", name:"Solana", code:"SOL", tokens:[
+{symbol:"SOL", name:"Solana"},{symbol:"USDC", name:"USD Coin (SPL)"}
+]}
+];
+
+var state = { step:"welcome", mnemonic:[], selectedChainId:"ethereum", balances:{} };
+
+function genMnemonic(){
+var copy = WORDS.slice(); var out=[];
+for(var i=0;i<12;i++){ var idx=Math.floor(Math.random()*copy.length); out.push(copy[idx]); copy.splice(idx,1); }
+return out;
+}
+function genBalancesForChain(chain){
+var m={}; for(var i=0;i<chain.tokens.length;i++){
+var t=chain.tokens[i];
+var isStable = (t.symbol==="USDT"||t.symbol==="USDC"||t.symbol==="DAI");
+var amount = isStable ? (Math.random()*2000).toFixed(2) : (Math.random()*3).toFixed(6);
+m[t.symbol] = Number(amount);
+} return m;
+}
+function ensureBalances(chainId){
+if(!state.balances[chainId]){
+var chain = CHAINS.filter(function(c){return c.id===chainId;})[0];
+state.balances[chainId] = genBalancesForChain(chain);
+}
+}
+
+function renderWelcome(){
+mount(
+'<section class="card hero">'+
+'<h1>欢迎使用 TripLink Wallet</h1>'+
+'<p>这是为旅行用户设计的加密交易钱包，帮助你在各个国家无差别使用资产。特别是在法币汇率波动较大的地区，使用该钱包将更有帮助。</p>'+
+'<div class="badges">'+
+'<span class="badge">支持多链：Ethereum、Tron 等</span>'+
+'<span class="badge">自托管 · 助记词由你保管</span>'+
+'<span class="badge">演示版 · 不连接真实区块链</span>'+
+'</div>'+
+'<div style="margin-top:18px">'+
+'<button class="primary" id="btnStart">开始注册</button> '+
+'<button class="ghost" id="btnLearn">了解更多</button>'+
+'</div>'+
+'</section>'
+);
+$("#btnStart").onclick = function(){ state.step="mnemonic"; state.mnemonic=genMnemonic(); renderMnemonic(); };
+$("#btnLearn").onclick = function(){ toast("此为演示版，不含真实链上操作。"); };
+}
+
+function renderMnemonic(){
+var wordsHtml = ""; for(var i=0;i<state.mnemonic.length;i++){ wordsHtml += '<div class="word">'+(i+1)+'. '+state.mnemonic[i]+'</div>'; }
+mount(
+'<section class="card">'+
+'<div style="display:flex;justify-content:space-between;align-items:center">'+
+'<div style="font-weight:700">注册 · 助记词备份</div>'+
+'<div class="chip">步骤 1/2</div>'+
+'</div>'+
+'<div class="line"></div>'+
+'<div class="warning">重要提示：助记词是你的钱包主密钥。请离线保存并妥善备份，切勿截图或分享给任何人。丢失将无法找回资产。</div>'+
+'<div class="mnemonic">'+wordsHtml+'</div>'+
+'<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+'<button id="copySeed" class="ghost">复制助记词</button>'+
+'<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="confirmSave"> 我已在安全位置妥善备份</label>'+
+'<button id="nextConfirm" class="primary" disabled>继续</button>'+
+'</div>'+
+'</section>'
+);
+$("#copySeed").onclick = function(){
+var text = state.mnemonic.join(" ");
+if (navigator.clipboard && navigator.clipboard.writeText){
+navigator.clipboard.writeText(text).then(function(){ toast("助记词已复制到剪贴板（请勿在联网设备存储）。"); })
+.catch(function(){ toast("复制失败，请手动记录。"); });
+} else {
+var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select();
+try{ document.execCommand('copy'); toast("助记词已复制到剪贴板（请勿在联网设备存储）。"); }catch(e){ toast("复制失败，请手动记录。"); }
+document.body.removeChild(ta);
+}
+};
+$("#confirmSave").onchange = function(e){ $("#nextConfirm").disabled = !e.target.checked; };
+$("#nextConfirm").onclick = function(){ state.step="wallet"; renderWallet(); toast("钱包已生成（演示）。"); };
+}
+
+function renderWallet(){
+ensureBalances(state.selectedChainId);
+var sidebar = '<div class="sidebar"><div class="side-head">主流链</div>';
+for(var i=0;i<CHAINS.length;i++){
+var c=CHAINS[i]; var active = (c.id===state.selectedChainId)?' active':'';
+sidebar += '<div class="chain'+active+'" data-id="'+c.id+'">'+
+'<div><div style="font-weight:600">'+c.name+'</div><div class="muted" style="font-size:12px">'+c.code+'</div></div>'+
+'<span class="chip">查看币种</span></div>';
+}
+sidebar += '</div>';
+var chain = CHAINS.filter(function(c){return c.id===state.selectedChainId;})[0];
+var balances = state.balances[state.selectedChainId];
+var list = '';
+for(var j=0;j<chain.tokens.length;j++){
+  var t=chain.tokens[j]; var amt = balances[t.symbol];
+  list += '<div class="token"><div class="left"><div class="ticon"></div><div><div style="font-weight:600">'+t.symbol+
+          '</div><div class="muted" style="font-size:12px">'+t.name+'</div></div></div>'+
+          '<div style="text-align:right"><div style="font-weight:700">'+amt+'</div>'+
+          '<div class="muted" style="font-size:12px">金额（演示）</div></div></div>';
+}
+mount(
+  '<section class="grid">'+
+    '<div class="card" style="display:flex;justify-content:space-between;align-items:center">'+
+      '<div><div style="font-weight:700">TripLink Wallet</div><div class="muted" style="font-size:12px">你正在查看：'+chain.name+'</div></div>'+
+      '<div>'+
+        '<button id="refresh" class="ghost">刷新余额</button> '+
+        '<button id="reset" class="ghost">返回欢迎页</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="layout">'+
+      sidebar+
+      '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+        '<div style="font-weight:700">币种与金额</div><span class="chip">数据为本地随机生成</span></div>'+
+        '<div class="list">'+list+'</div></div>'+
+    '</div>'+
+  '</section>'
+);
+var nodes = document.querySelectorAll('.chain');
+for(var k=0;k<nodes.length;k++){
+  nodes[k].onclick = function(){ state.selectedChainId = this.dataset.id; renderWallet(); };
+}
+$("#refresh").onclick = function(){
+  var c = CHAINS.filter(function(x){return x.id===state.selectedChainId;})[0];
+  state.balances[state.selectedChainId] = genBalancesForChain(c);
+  renderWallet(); toast("已刷新（演示）");
+};
+$("#reset").onclick = function(){ state = { step:"welcome", mnemonic:[], selectedChainId:"ethereum", balances:{} }; renderWelcome(); };
+}
+
+renderWelcome();
+</script>
+</body>
+</html>
